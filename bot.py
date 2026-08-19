@@ -7,8 +7,18 @@ import random
 
 import sqlite3
 
+from huggingface_hub import InferenceClient
+
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
+
+HF_TOKEN = os.getenv('HF_TOKEN')
+if not HF_TOKEN:
+    raise RuntimeError("HF_TOKEN is not set.")
+
+client = InferenceClient(
+    api_key=HF_TOKEN
+)
 
 db =  sqlite3.connect('storyBot.db')
 cursor = db.cursor()
@@ -152,19 +162,19 @@ async def choose(ctx, choice: str):
     await ctx.send(response)
 
 
-@bot.command()
-async def chat(ctx, *, message: str):
-    text = message.lower()
+# @bot.command()
+# async def chat(ctx, *, message: str):
+#     text = message.lower()
 
-    for keyword, responses in chat_responses.items():
-        if keyword in text:
-            await ctx.send(random.choice(responses))
-            return
+#     for keyword, responses in chat_responses.items():
+#         if keyword in text:
+#             await ctx.send(random.choice(responses))
+#             return
 
-    await ctx.send(
-        "I'm still learning how to respond to that. "
-        "Try talking to me about Python or Discord!"
-    )
+#     await ctx.send(
+#         "I'm still learning how to respond to that. "
+#         "Try talking to me about Python or Discord!"
+#     )
 
 @bot.command()
 async def support(ctx, *, message: str):
@@ -241,5 +251,38 @@ async def status(ctx):
             "You don't have a saved story yet. "
             "Start one with `!story`!"
         )
+
+@bot.command()
+async def chat(ctx, *, message: str):
+    try:
+        response = client.chat_completion(
+            model="Qwen/Qwen3.8-2.4T-A95B:together",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a friendly Discord bot. "
+                        "Keep responses helpful, concise, and conversational."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": message
+                }
+            ],
+            max_tokens=200
+        )
+
+        answer = response.choices[0].message.content
+
+        await ctx.send(answer)
+
+    except Exception as error:
+        print(f"AI error: {error}")
+        await ctx.send(
+            "I couldn't generate a response right now. "
+            "Please try again later."
+        )
+
 
 bot.run(TOKEN)
